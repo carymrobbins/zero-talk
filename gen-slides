@@ -1,0 +1,53 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const _ = require('./js/underscore-min.js');
+
+var inCodeBlock = false;
+var out =
+  '<!--\n' +
+  '****    THIS IS A GENERATED FILE, DO NOT EDIT!    ****\n' +
+  '**** CHANGES SHOULD BE MADE IN slides.md INSTEAD! ****\n' +
+  '-->\n';
+
+// Escape HTML in code blocks except for spans to allow for fragment/mark.
+// The trailing dots are needed due to js' clunky indent rules.
+const escapeCodeBlock = s =>
+  _.escape(s).
+    replace(/&lt;frag&gt;/g, '<span class="fragment">').
+    replace(/&lt;frag (\d+)&gt;/g, '<span class="fragment" data-fragment-index="$1">').
+    replace(/&lt;mark&gt;/g, '<span class="fragment highlight-red">').
+    replace(/&lt;mark (\d+)&gt;/g, '<span class="fragment highlight-red" data-fragment-index="$1">').
+    replace(/&lt;mark (\w+)&gt;/g, '<span class="fragment highlight-$1">').
+    replace(/&lt;mark (\w+) (\d+)&gt;/g, '<span class="fragment highlight-$1" data-fragment-index="$2">').
+    replace(/&lt;\/(frag|mark)&gt;/g, '</span>');
+
+// Expand non-code block <frag> elements
+const expandMagicTags = s =>
+  s.replace(/<frag>/g, '<span class="fragment">').
+    replace(/<frag (\d+)>/g, '<span class="fragment" data-fragment-index="$1">').
+    replace(/<\/frag>/g, '</span>')
+    ;
+
+fs.readFileSync('./slides.md').toString().split('\n').forEach(line => {
+  var matcher = /^```(.*)$/.exec(line);
+  if (matcher === null) {
+    if (inCodeBlock) {
+      out += escapeCodeBlock(line) + '\n';
+    } else {
+      out += expandMagicTags(line) + '\n';
+    }
+    return;
+  }
+  if (inCodeBlock) {
+    inCodeBlock = false;
+    out += '</code></pre>\n'
+    return;
+  }
+  inCodeBlock = true;
+  out += '<pre><code data-noescape data-trim class=' + matcher[1] + '>\n';
+});
+
+fs.writeFile('slides.gen.md', out, err => { if (err) console.log(err); });
+
+console.log('Generated slides.gen.md');
